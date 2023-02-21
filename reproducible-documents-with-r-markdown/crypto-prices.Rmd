@@ -1,0 +1,78 @@
+---
+title: "Daily Bitcoin Report"
+author: "Trevor French"
+date: "`r Sys.time()`"
+output:
+  pdf_document:
+    fig_width: 7
+    fig_height: 6.5
+fontsize: "10pt"
+---
+
+## Overview
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+library("quantmod")
+library("cryptotrackr")
+library("dplyr")
+library("ggplot2")
+
+period <- '60min'
+size <- '24'
+symbol <- 'btcusdt'
+candles <- huobi_candles(period, size, symbol)
+
+candles <- candles |>
+  mutate("id" = as.POSIXct(id, origin = "1970-01-01")) |>
+  rename("date" = "id")
+```
+
+The total volume for the past 24 hours of trading the "btcusdt" instrument on Huobi was `r sum(candles$vol)` USDT (or `r sum(candles$amount)` BTC). The following chart demonstrates the volume denominated in 100,000s of USDT along with the price of BTC denominated in 1000s of USDT.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+qcandles <- candles
+
+rownames(qcandles) <- qcandles$date
+qcandles <- rename(qcandles, "Volume" = "vol")
+qcandles <- qcandles |>
+  mutate(open = open / 1000) |>
+  mutate(high = high / 1000) |>
+  mutate(low = low / 1000) |>
+  mutate(close = close / 1000)
+qcandles <- select(qcandles, open, high, low, close, Volume)
+xts_candles <- as.xts(qcandles)
+
+chartSeries(xts_candles,
+            name = "cryptotrackr",
+            theme = "white")
+```
+
+## Volume by Instrument
+
+The following chart illustrates the trading volume denominated in BTC for the following four instruments: "ethbtc", "solbtc", "bchbtc", and "adabtc".
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+eth <- huobi_candles('60min', '24', 'ethbtc')
+sol <- huobi_candles('60min', '24', 'solbtc')
+bch <- huobi_candles('60min', '24', 'bchbtc')
+ada <- huobi_candles('60min', '24', 'adabtc')
+
+closing <- data.frame("vol" = eth$vol, "symbol" = "ethbtc", "date" = as.POSIXct(eth$id, origin = "1970-01-01"))
+closing <- rbind(closing, data.frame("vol" = sol$vol, "symbol" = "solbtc", "date" = as.POSIXct(sol$id, origin = "1970-01-01")))
+closing <- rbind(closing, data.frame("vol" = bch$vol, "symbol" = "bchbtc", "date" = as.POSIXct(bch$id, origin = "1970-01-01")))
+closing <- rbind(closing, data.frame("vol" = ada$vol, "symbol" = "adabtc", "date" = as.POSIXct(ada$id, origin = "1970-01-01")))
+ 
+ggplot(closing, aes(x = date)) +                                    
+  geom_bar(aes(y = vol), stat="identity", fill="#f2a900") +
+  facet_wrap(. ~ symbol) +
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank(), axis.text.x = element_blank())
+```
+
+## Raw Data
+
+The following table displays the trading statistics between "BTC" and "USDT" on Huobi for the past 24 hours. The "date" column represents an hour interval. The "open" and "close" columns refer to the first and last prices of the specified interval while the "low" and "high" refer to the minimum and maximum values. The "amount" column represents the trading volume denominated in the base currency (BTC) and the "vol" column represents the trading volume denominated in the quote currency (USDT). Finally, the "count" column is the amount of completed trades within the interval.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+knitr::kable(candles, format="markdown")
+```
